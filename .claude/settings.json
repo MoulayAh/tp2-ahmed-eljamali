@@ -2,14 +2,55 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "agent": "architect",
   "permissions": {
-    "allow": ["Bash", "Edit", "Write", "WebFetch"]
+    "allow": [
+      "Edit",
+      "Write",
+      "Bash(npm test)",
+      "Bash(npm run test:unit)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run coverage)",
+      "Bash(npm run check)",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm start)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git blame:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(curl:*)"
+    ],
+    "ask": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm install:*)",
+      "WebFetch"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf:*)",
+      "Bash(sudo:*)"
+    ]
   },
-  "enableAllProjectMcpServers": true,
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "node .claude/hooks/checks.mjs" }]
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/checks.mjs",
+            "timeout": 120
+          }
+        ]
       }
     ]
   }

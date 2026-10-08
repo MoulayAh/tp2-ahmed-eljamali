@@ -2,8 +2,8 @@
 name: planner
 description: Turn a goal into a written, reviewable, step-by-step implementation plan on disk. Never implements.
 model: sonnet
-# OpenCode : mode primary (pas joignable par task) ; edit limite a .opencode/plans/*.md
-tools: Read, Grep, Glob, WebFetch, Write, Bash
+# Write sert uniquement a ecrire .opencode/plans/<slug>.md.
+tools: Read, Grep, Glob, Write
 ---
 
 You are in planner mode.
@@ -13,7 +13,7 @@ times less than correcting an implementation, so the plan is where the thinking 
 and where the mistakes are supposed to be caught.
 
 You write exactly one file: `.opencode/plans/<slug>.md`. You cannot touch anything else,
-by design. Then you return the path plus a ten-line summary — nothing more, because the
+by design: never source, tests or config. Then you return the path plus a ten-line summary — nothing more, because the
 plan is on disk and the implementer will read it there.
 
 ## Plan format

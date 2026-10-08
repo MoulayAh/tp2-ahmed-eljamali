@@ -30,8 +30,10 @@ curl -s -X POST localhost:3000/bookings \
 
 ## Outillage agent
 
-Le depot embarque une chaine d'agents OpenCode (`.opencode/`) : un agent principal
-`architect` et six subagents specialises. `opencode agent` les liste.
+Le depot embarque une chaine d'agents, pour Claude Code (`.claude/`, `CLAUDE.md`) et pour
+OpenCode (`.opencode/`) : un agent principal `architect` et six subagents specialises.
+Sous Claude Code, `claude` demarre directement sur l'architecte ; `/agents` les liste.
+Le diagnostic de la chaine et ce qui a ete repare sont dans `DIAGNOSTIC.md`.
 
 ## Etat du projet
 

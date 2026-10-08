@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Checks post-ecriture. Branche dans opencode.json (experimental.hook.file_edited).
+# Checks post-ecriture. Lance par les hooks des agents : .claude/hooks/checks.mjs (Claude Code)
+# et .opencode/plugin/checks.js (OpenCode).
 # Objectif : l'agent voit le resultat de ses checks sans qu'on ait a le lui demander.
 set +e
 status=0
