@@ -2,3 +2,13 @@ node_modules/
 coverage/
 *.log
 .opencode/scratch/
+reports/
+.stryker-tmp/
+
+# secrets : jamais dans le depot, voir .env.example
+.env
+.env.*
+!.env.example
+
+# reglages Claude Code propres a chaque poste
+.claude/settings.local.json

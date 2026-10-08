@@ -1,14 +1,24 @@
+import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 // Mise en place du lint — ticket INFRA-212.
-// Le parser TypeScript est branche, les regles seront choisies avec l'equipe.
-export default [
+// Socle : regles recommandees JS + TypeScript, plus les regles qui protegent les
+// conventions de AGENTS.md.
+export default tseslint.config(
+  { ignores: ["node_modules/", "coverage/", "dist/"] },
   {
     files: ["src/**/*.ts", "test/**/*.ts"],
-    languageOptions: {
-      parser: tseslint.parser,
-      parserOptions: { ecmaVersion: "latest", sourceType: "module" }
-    },
-    rules: {}
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    rules: {
+      eqeqeq: "error",
+      "no-eval": "error",
+      "@typescript-eslint/ban-ts-comment": "error",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }]
+    }
+  },
+  {
+    // Les tests HTTP lisent des corps JSON arbitraires.
+    files: ["test/**/*.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" }
   }
-];
+);

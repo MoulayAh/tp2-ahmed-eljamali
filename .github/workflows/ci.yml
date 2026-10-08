@@ -15,5 +15,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run lint
-      # - run: npm run test:unit   # TODO remettre, ca bloquait les merges
+      # Les tests bloquaient les merges parce qu'ils etaient rouges (overlap, prix week-end) :
+      # les bugs sont corriges, les tests reviennent, avec seuils de couverture.
+      - run: npm run coverage

@@ -13,9 +13,12 @@ export function requireString(payload: Record<string, unknown>, field: string): 
   return value;
 }
 
+// ISO 8601 avec fuseau explicite : sans lui, Date.parse lit l'heure locale du serveur.
+const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
 export function requireDate(payload: Record<string, unknown>, field: string): string {
   const value = requireString(payload, field);
-  if (Number.isNaN(Date.parse(value))) {
+  if (!ISO_WITH_ZONE.test(value) || Number.isNaN(Date.parse(value))) {
     throw new ValidationError(`date invalide : ${field}`);
   }
   return value;
