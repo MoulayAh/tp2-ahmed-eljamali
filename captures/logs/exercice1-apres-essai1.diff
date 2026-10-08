@@ -1,0 +1,476 @@
+diff --git a/.opencode/plans/room-availability-notes.md b/.opencode/plans/room-availability-notes.md
+new file mode 100644
+index 0000000..ce379fa
+--- /dev/null
++++ b/.opencode/plans/room-availability-notes.md
+@@ -0,0 +1,55 @@
++# Notes : GET /rooms/:id/availability?date=YYYY-MM-DD
++
++## Answer
++- Un routeur `rooms` existe deja, monte sur `/rooms` (app.ts:2, :9). Il expose GET `/`, GET `/:id`. Le sous-chemin `/:id/availability` n'existe pas.
++- Une salle n'a pas d'horaires d'ouverture ni de granularite de creneau : rien dans src/ (Room, store.ts:1-6).
++- Les reservations sont des bornes ISO 8601 avec `Z` en `string`, comparees par `Date.parse` (store.ts:13-14, overlap.ts:6-11).
++- Aucun type `Result` dans le depot : le code existant leve `ValidationError` (validate.ts:4-6).
++- Question ouverte : quel jour compte (UTC ou fuseau de Paris), et quelles heures d'ouverture.
++
++## How it works
++1. Demarrage : server.ts:5 appelle `createApp().listen(port)`, port 3000 par defaut (server.ts:3).
++2. `createApp` (app.ts:5-11) : `express.json()`, `/health`, puis `app.use("/rooms", roomsRouter)` et `/bookings`. Aucun middleware d'erreur : une erreur non geree part sur le handler par defaut d'Express.
++3. Routes existantes :
++   - GET /health (app.ts:8)
++   - GET /rooms (rooms.ts:6-8)
++   - GET /rooms/:id, 404 `{error:"salle inconnue"}` (rooms.ts:10-16)
++   - GET /bookings?roomId= (bookings.ts:9-16)
++   - POST /bookings, 400 via ValidationError, 409 `{error, conflictsWith}` (bookings.ts:18-65)
++   - DELETE /bookings/:id, 404 `{error:"reservation inconnue"}` (bookings.ts:67-75)
++4. Modele (store.ts) : Room `{id,name,capacity,hourlyRate}` (:1-6), Booking `{id,roomId,who,people,startsAt,endsAt,price}` avec dates en string (:8-16). Quatre salles (:18-23), deux reservations seed (:25-44).
++5. Acces lecture seule : `rooms`, `bookings`, `findRoom(id)` (:53-55), `bookingsForRoom(roomId)` (:57-59). Aucun filtre par date. `nextBookingId` (:46-51) est le seul effet de bord.
++6. Les dates des reservations sont stockees telles que validees, sans normalisation (bookings.ts:52-53). Un decalage `+02:00` peut donc coexister avec `Z`. `Date.parse` les compare correctement.
++7. Validation : `requireDate` (validate.ts:19-25) exige date+heure+fuseau. La regex `ISO_WITH_ZONE` (validate.ts:17) rejette donc `YYYY-MM-DD` seul. Il faudra un controle dedie pour le parametre `date`.
++8. Date : seul helper, `isWeekend` via `getUTCDay` (price.ts:6-9), donc la convention du depot est UTC. `hoursBetween` (price.ts:11-13) renvoie des heures fractionnaires.
++9. Chevauchement : demi-ouvert `[debut, fin[` (overlap.ts:4, :11). Deux creneaux bout a bout ne se chevauchent pas (test/overlap.spec.ts:27-36).
++
++## Key files
++src/app.ts:1-12 — montage des routeurs, /health, pas de middleware d'erreur
++src/routes/rooms.ts:1-17 — routeur existant, cible naturelle de la nouvelle route (choix a faire)
++src/routes/bookings.ts:18-65 — modele de validation + 400/409 ; `req.query` est type `string | ParsedQs` (typeof requis)
++src/store.ts:1-59 — types et lecture seule ; ne pas modifier
++src/lib/validate.ts:4-33 — ValidationError (status 400), requireString/requireDate/requirePositiveInt
++src/lib/overlap.ts:1-12 — chevauchement demi-ouvert
++src/lib/price.ts:6-13 — isWeekend (UTC), hoursBetween
++test/rooms.spec.ts:4-14 — helper `call` : createApp + listen(0) + fetch + close
++test/bookings.spec.ts:4-21 — helpers `call` et `post`, dates distinctes pour eviter les collisions (pas de reset du store)
++vitest.config.ts:8-23 — garde-fou de nommage *.spec.ts, seuils de couverture
++eslint.config.js:10-22 — eqeqeq, no-unused-vars (argsIgnorePattern ^_), no-explicit-any off dans test/
++
++## Gotchas
++- src/lib/AGENTS.md (verbatim) : « Un `export default` par module, qui expose la fonction principale. [...] le default est obligatoire » ; « Pas de JSDoc ici » ; « Les fonctions de ce dossier sont pures. Aucun acces reseau, aucun acces disque. ». Le code ne suit pas ces regles : aucun `export default` dans src/ (grep), et validate.ts:1-3 et overlap.ts:1-5 portent de la JSDoc.
++- AGENTS.md (convention 1) exige la JSDoc sur toute fonction exportee, avec exception pour src/lib/. Les deux regles se contredisent pour src/lib.
++- Les tests partagent le store d'un fichier : pas de reset, les tests POST changent de dates pour ne pas se gener (bookings.spec.ts:68-86, 113-122 depend du seed bk-1001).
++- Ajouter une salle casse test/store.spec.ts:7 et rooms.spec.ts:27 (comptes et ids figes).
++- ValidationError est la seule erreur attrapee (bookings.ts:59-63) ; les autres sont relancees, donc 500 par defaut.
++- `rooms.ts` n'a pas de try/catch : un nouveau handler qui leve une ValidationError n'est pas converti en 400 sans l'ajouter.
++- Seuils de couverture : lines/functions/statements 90, branches 85 (vitest.config.ts:23). Le script `coverage` les applique.
++- Le hook post-ecriture (CLAUDE.md) relance typecheck, lint, tests, mais n'en bloque pas l'ecriture.
++
++## Unknowns
++- Jour : UTC ou fuseau local (Europe/Paris) ? Rien dans le depot ne le tranche. Il faut une decision produit.
++- Horaires d'ouverture et granularite des creneaux : absents du code et des tests. Source a demander (ticket ou produit).
++- Le fichier `.opencode/scratch/all-tests.config.ts` n'a pas ete lu (hors scope, n'entre pas dans vitest include).
++- Git history et ticket INFRA-140 non consultes : Bash a ete refuse, donc pas de `git log`.
++- Tests d'une route `/availability` : aucun n'existe ; le format de reponse est a definir.
+diff --git a/.opencode/plans/room-availability.md b/.opencode/plans/room-availability.md
+new file mode 100644
+index 0000000..10533be
+--- /dev/null
++++ b/.opencode/plans/room-availability.md
+@@ -0,0 +1,81 @@
++# Add GET /rooms/:id/availability?date=YYYY-MM-DD returning the free slots of a room for one UTC day
++
++## Goal
++`GET /rooms/:id/availability?date=2031-03-04` answers 200 `{ roomId, date, slots: [{ start, end }] }`. `slots` are the gaps in the room's bookings inside the UTC day `[date T00:00:00Z, next day T00:00:00Z)`, as `toISOString()` strings (Z form), sorted. Bad input gives 400, an unknown room gives 404, both as `{ error }`. Unit and route tests exist, and `npm run check` and `npm run coverage` are green.
++
++## Non-goals
++- No opening hours, slot granularity or time zone parameter. No Europe/Paris day.
++- No change to `src/store.ts`, `src/lib/validate.ts` or `src/app.ts`. No new dependency.
++- No migration of existing code to `Result`. No fix of the `src/lib/AGENTS.md` contradiction.
++
++## Assumptions and open questions
++- BLOCKING: none. The points below were decided by the requester and can be overridden.
++- assumption: the day is the UTC day (the repo already uses UTC, see `isWeekend` in `price.ts`). Without opening hours, free slots are the complement of the bookings in that window, so an empty room returns one slot covering the whole 24h.
++- assumption: bookings crossing a day boundary are clipped to the window. Overlapping or adjacent bookings are merged (half-open `[start, end[`, consistent with `overlap.ts`). Zero-length gaps are omitted. Bookings may carry `+hh:mm` offsets, so compare with `Date.parse` and always output Z.
++- assumption: `date` must match `^\d{4}-\d{2}-\d{2}$` and be a real calendar date (`2026-02-30` is rejected, and so are `2026-2-3`, `2026-03-04T00:00:00Z` and trailing characters). Check by round trip: `new Date(date + "T00:00:00Z").toISOString().slice(0, 10) === date`.
++- assumption: order is 404 first, then 400. The room lookup is the existing pattern of `GET /rooms/:id`. Consequence: an unknown room with a bad date gives 404.
++- assumption: `req.query.date` may be `string | ParsedQs | string[]`. Anything that is not a string counts as missing (400).
++- assumption: new failing code returns a `Result` (AGENTS.md convention 2). The type goes in its own module `src/lib/result.ts`, types only. `validate.ts` stays as is.
++- FLAGGED CONFLICT: root `AGENTS.md` convention 1 requires a JSDoc on every exported function, except in `src/lib/`. `src/lib/AGENTS.md` requires one `export default` per module and forbids JSDoc. Existing code follows neither: there is no `export default` anywhere in `src/`, and `validate.ts` and `overlap.ts` carry JSDoc. Decision: follow the existing modules. Use named exports only, with a one-line JSDoc on each exported function. Do not add `export default`. The human should confirm, or fix the rule file, since billing scripts supposedly load modules by their default export (not verified in this repo).
++- assumption: purity (the one `src/lib/AGENTS.md` rule that is honoured) is kept. The lib function takes bookings as an argument and does not import `store.ts`.
++
++## Files to touch
++| File | Change | Why |
++|---|---|---|
++| `src/lib/result.ts` | new, types `Result<T, E = string>` | minimal Result type, one responsibility |
++| `src/lib/availability.ts` | new, `freeSlots` | pure slot computation and strict date check |
++| `src/routes/rooms.ts` | add the `/:id/availability` handler | wiring, status codes |
++| `test/availability.spec.ts` | new | unit tests of the computation |
++| `test/rooms-availability.spec.ts` | new | route tests (kept apart so the frozen counts in `rooms.spec.ts` are untouched) |
++
++## Steps
++### 1. Pure computation, with its unit tests
++- What: create `src/lib/result.ts` (`Result<T, E>` as `{ ok: true; value: T } | { ok: false; error: E }`). Create `src/lib/availability.ts` exporting `type Slot = { start: string; end: string }` and `freeSlots(date: string, bookings: ReadonlyArray<{ startsAt: string; endsAt: string }>): Result<Slot[], string>`. It returns `ok:false` with a French message for an invalid date. Otherwise it clips, sorts, merges and takes the gaps. Relative imports use `.js`.
++- Where: `src/lib/result.ts`, `src/lib/availability.ts`, `test/availability.spec.ts`.
++- Test cases to write (`test/availability.spec.ts`):
++  1. no bookings: one slot `00:00Z` to next day `00:00Z`.
++  2. one booking in the middle: two slots around it.
++  3. booking starting at 00:00Z: no leading slot (zero-length omitted).
++  4. booking ending at 24:00Z: no trailing slot.
++  5. two adjacent bookings (end equals start): merged, one gap before and one after, none between.
++  6. overlapping bookings: merged.
++  7. unsorted input gives sorted output.
++  8. booking starting the previous day and ending inside the day: clipped.
++  9. booking starting inside the day and ending the next day: clipped.
++  10. booking fully covering the day: `slots` is `[]`.
++  11. bookings fully outside the day (before and after): ignored, whole day free.
++  12. booking with a `+02:00` offset: converted correctly, output in Z.
++  13. invalid dates each give `ok:false`: `""`, `"2026-02-30"`, `"2026-13-01"`, `"2026-3-4"`, `"2026-03-04T00:00:00Z"`, `"2026-03-04x"`, `"abc"`.
++  14. leap day `2028-02-29` is accepted. `2027-02-29` is rejected.
++  15. month and year rollover: `2026-12-31` ends at `2027-01-01T00:00:00.000Z`.
++- Done when: `npx vitest run test/availability.spec.ts` passes, and `npm run check` exits 0.
++
++### 2. Route wiring, with its route tests
++- What: in `src/routes/rooms.ts`, add `roomsRouter.get("/:id/availability", ...)`. Order: `findRoom` (404 `{ error: "salle inconnue" }`), then read `req.query.date` (non-string is treated as missing), then call `freeSlots(date, bookingsForRoom(room.id))`. On `ok:false` answer 400 `{ error }`. On success answer 200 `{ roomId, date, slots }`. Do not throw. Add a one-line JSDoc only if a new exported function appears (none expected). Do not touch `store.ts`.
++- Where: `src/routes/rooms.ts`, `test/rooms-availability.spec.ts`. Copy the local `call` helper (createApp, `listen(0)`, fetch, close) from `test/rooms.spec.ts`.
++- Test cases to write:
++  1. 200 for a room with no bookings on the queried day: `slots` is one full-day slot, `roomId` and `date` are echoed.
++  2. 200 after a `POST /bookings` made in the test on a far-future date (distinct per test, since the store is never reset): two slots around it. Use dates that no seed booking uses.
++  3. a seed booking (read the dates in `store.ts`): the day it falls on has that gap removed.
++  4. 404 `{ error: "salle inconnue" }` for an unknown room with a valid date.
++  5. 404 for an unknown room with a missing date (documents the 404-before-400 order).
++  6. 400 for a missing `date`.
++  7. 400 for `date=2026-02-30`, `date=2026-03-04T10:00:00Z`, `date=garbage`.
++  8. 400 for a repeated parameter `?date=2026-03-04&date=2026-03-05`.
++  9. `GET /rooms/:id` still returns 200 (no route shadowing).
++- Done when: `npx vitest run test/rooms-availability.spec.ts` passes, and `npm run check` exits 0 (that includes the existing `rooms.spec.ts` and `store.spec.ts`, still unchanged and green).
++
++### 3. Coverage gate
++- What: run the coverage and add missing cases if `availability.ts` or the new handler is under the thresholds (lines, functions, statements 90, branches 85, from `vitest.config.ts`). Make no other change.
++- Where: tests only, unless a real bug shows up.
++- Done when: `npm run coverage` exits 0, and `npm run check` exits 0. Also confirm by hand that `src/store.ts` is unchanged (`git diff --stat -- src/store.ts` prints nothing).
++
++## How this is verified
++The test lists in steps 1 and 2 are the specification. They must be written first, before the implementation, and seen failing. Boundary cases covered: day edges (00:00Z and 24:00Z), clipping on both sides, adjacency, overlap, a full-day booking, offsets, an invalid calendar date, leap year, year rollover, a repeated query parameter, and 404 versus 400 order. Final gate: `npm run check` and `npm run coverage` both green.
++
++## Risks and rollback
++- A `/:id/availability` route does not collide with `/:id` in Express (a different segment count). Test 9 in step 2 guards this.
++- Route tests that POST bookings change the shared store for that file only. Using distinct far-future dates avoids interference with `bookings.spec.ts` (separate test files get separate module instances in vitest, but verify).
++- `Date.parse` accepts forms that `^\d{4}-\d{2}-\d{2}$` already rejects, so the regex must run first.
++- The JSDoc / `export default` decision above may be overturned. The cost is adding a default export to `availability.ts`.
++- Rollback: remove the five files and the added handler. No data or schema is affected.
+diff --git a/src/lib/availability.ts b/src/lib/availability.ts
+new file mode 100644
+index 0000000..94d8ff8
+--- /dev/null
++++ b/src/lib/availability.ts
+@@ -0,0 +1,43 @@
++import type { Result } from "./result.js";
++
++export type Slot = { start: string; end: string };
++
++const DAY_MS = 24 * 60 * 60 * 1000;
++
++/**
++ * Creneaux libres d'une salle pour un jour UTC (YYYY-MM-DD), en ISO 8601 Z.
++ */
++export function freeSlots(
++  date: string,
++  bookings: ReadonlyArray<{ startsAt: string; endsAt: string }>
++): Result<Slot[], string> {
++  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
++    return { ok: false, error: "date invalide : format attendu AAAA-MM-JJ" };
++  }
++  const dayStart = Date.parse(`${date}T00:00:00Z`);
++  if (Number.isNaN(dayStart) || new Date(dayStart).toISOString().slice(0, 10) !== date) {
++    return { ok: false, error: "date invalide : jour inexistant au calendrier" };
++  }
++  const dayEnd = dayStart + DAY_MS;
++
++  const busy = bookings
++    .map((b) => ({
++      start: Math.max(Date.parse(b.startsAt), dayStart),
++      end: Math.min(Date.parse(b.endsAt), dayEnd),
++    }))
++    .filter((b) => b.start < b.end)
++    .sort((a, b) => a.start - b.start);
++
++  const slots: Slot[] = [];
++  let cursor = dayStart;
++  for (const b of busy) {
++    if (b.start > cursor) {
++      slots.push({ start: new Date(cursor).toISOString(), end: new Date(b.start).toISOString() });
++    }
++    cursor = Math.max(cursor, b.end);
++  }
++  if (cursor < dayEnd) {
++    slots.push({ start: new Date(cursor).toISOString(), end: new Date(dayEnd).toISOString() });
++  }
++  return { ok: true, value: slots };
++}
+diff --git a/src/lib/result.ts b/src/lib/result.ts
+new file mode 100644
+index 0000000..04c84e7
+--- /dev/null
++++ b/src/lib/result.ts
+@@ -0,0 +1 @@
++export type Result<T, E = string> = { ok: true; value: T } | { ok: false; error: E };
+diff --git a/src/routes/rooms.ts b/src/routes/rooms.ts
+index 7b502b6..2e2538e 100644
+--- a/src/routes/rooms.ts
++++ b/src/routes/rooms.ts
+@@ -1,5 +1,6 @@
+ import { Router } from "express";
+ import { rooms, findRoom, bookingsForRoom } from "../store.js";
++import { freeSlots } from "../lib/availability.js";
+ 
+ export const roomsRouter = Router();
+ 
+@@ -15,3 +16,18 @@ roomsRouter.get("/:id", (req, res) => {
+   }
+   res.json({ room, bookings: bookingsForRoom(room.id) });
+ });
++
++roomsRouter.get("/:id/availability", (req, res) => {
++  const room = findRoom(req.params.id);
++  if (!room) {
++    res.status(404).json({ error: "salle inconnue" });
++    return;
++  }
++  const date = typeof req.query.date === "string" ? req.query.date : "";
++  const result = freeSlots(date, bookingsForRoom(room.id));
++  if (!result.ok) {
++    res.status(400).json({ error: result.error });
++    return;
++  }
++  res.json({ roomId: room.id, date, slots: result.value });
++});
+diff --git a/test/availability.spec.ts b/test/availability.spec.ts
+new file mode 100644
+index 0000000..591d668
+--- /dev/null
++++ b/test/availability.spec.ts
+@@ -0,0 +1,134 @@
++import { describe, it, expect } from "vitest";
++import { freeSlots } from "../src/lib/availability.js";
++
++const DAY = "2026-03-04";
++const START = "2026-03-04T00:00:00.000Z";
++const END = "2026-03-05T00:00:00.000Z";
++
++function slotsOf(date: string, bookings: { startsAt: string; endsAt: string }[]) {
++  const res = freeSlots(date, bookings);
++  if (!res.ok) throw new Error(res.error);
++  return res.value;
++}
++
++describe("freeSlots", () => {
++  it("sans reservation, renvoie la journee entiere", () => {
++    expect(slotsOf(DAY, [])).toEqual([{ start: START, end: END }]);
++  });
++
++  it("une reservation au milieu laisse deux creneaux", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T10:00:00Z", endsAt: "2026-03-04T12:00:00Z" },
++    ]);
++    expect(slots).toEqual([
++      { start: START, end: "2026-03-04T10:00:00.000Z" },
++      { start: "2026-03-04T12:00:00.000Z", end: END },
++    ]);
++  });
++
++  it("une reservation qui commence a 00:00Z n'a pas de creneau avant", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T00:00:00Z", endsAt: "2026-03-04T08:00:00Z" },
++    ]);
++    expect(slots).toEqual([{ start: "2026-03-04T08:00:00.000Z", end: END }]);
++  });
++
++  it("une reservation qui finit a 24:00Z n'a pas de creneau apres", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T20:00:00Z", endsAt: "2026-03-05T00:00:00Z" },
++    ]);
++    expect(slots).toEqual([{ start: START, end: "2026-03-04T20:00:00.000Z" }]);
++  });
++
++  it("fusionne deux reservations adjacentes", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T09:00:00Z", endsAt: "2026-03-04T10:00:00Z" },
++      { startsAt: "2026-03-04T10:00:00Z", endsAt: "2026-03-04T11:00:00Z" },
++    ]);
++    expect(slots).toEqual([
++      { start: START, end: "2026-03-04T09:00:00.000Z" },
++      { start: "2026-03-04T11:00:00.000Z", end: END },
++    ]);
++  });
++
++  it("fusionne deux reservations qui se chevauchent", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T09:00:00Z", endsAt: "2026-03-04T11:00:00Z" },
++      { startsAt: "2026-03-04T10:00:00Z", endsAt: "2026-03-04T12:00:00Z" },
++    ]);
++    expect(slots).toEqual([
++      { start: START, end: "2026-03-04T09:00:00.000Z" },
++      { start: "2026-03-04T12:00:00.000Z", end: END },
++    ]);
++  });
++
++  it("trie la sortie meme si l'entree est en desordre", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T15:00:00Z", endsAt: "2026-03-04T16:00:00Z" },
++      { startsAt: "2026-03-04T09:00:00Z", endsAt: "2026-03-04T10:00:00Z" },
++    ]);
++    expect(slots).toEqual([
++      { start: START, end: "2026-03-04T09:00:00.000Z" },
++      { start: "2026-03-04T10:00:00.000Z", end: "2026-03-04T15:00:00.000Z" },
++      { start: "2026-03-04T16:00:00.000Z", end: END },
++    ]);
++  });
++
++  it("rogne une reservation commencee la veille", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-03T22:00:00Z", endsAt: "2026-03-04T02:00:00Z" },
++    ]);
++    expect(slots).toEqual([{ start: "2026-03-04T02:00:00.000Z", end: END }]);
++  });
++
++  it("rogne une reservation qui finit le lendemain", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T22:00:00Z", endsAt: "2026-03-05T03:00:00Z" },
++    ]);
++    expect(slots).toEqual([{ start: START, end: "2026-03-04T22:00:00.000Z" }]);
++  });
++
++  it("une reservation qui couvre la journee ne laisse aucun creneau", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-03T12:00:00Z", endsAt: "2026-03-05T12:00:00Z" },
++    ]);
++    expect(slots).toEqual([]);
++  });
++
++  it("ignore les reservations hors de la journee", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-03T10:00:00Z", endsAt: "2026-03-03T12:00:00Z" },
++      { startsAt: "2026-03-05T10:00:00Z", endsAt: "2026-03-05T12:00:00Z" },
++    ]);
++    expect(slots).toEqual([{ start: START, end: END }]);
++  });
++
++  it("convertit un decalage +02:00 et sort en Z", () => {
++    const slots = slotsOf(DAY, [
++      { startsAt: "2026-03-04T10:00:00+02:00", endsAt: "2026-03-04T12:00:00+02:00" },
++    ]);
++    expect(slots).toEqual([
++      { start: START, end: "2026-03-04T08:00:00.000Z" },
++      { start: "2026-03-04T10:00:00.000Z", end: END },
++    ]);
++  });
++
++  it.each(["", "2026-02-30", "2026-13-01", "2026-3-4", "2026-03-04T00:00:00Z", "2026-03-04x", "abc"])(
++    "refuse la date invalide %j",
++    (date) => {
++      const res = freeSlots(date, []);
++      expect(res.ok).toBe(false);
++    }
++  );
++
++  it("accepte le 29 fevrier d'une annee bissextile et refuse les autres", () => {
++    expect(freeSlots("2028-02-29", []).ok).toBe(true);
++    expect(freeSlots("2027-02-29", []).ok).toBe(false);
++  });
++
++  it("passe d'une annee a l'autre", () => {
++    expect(slotsOf("2026-12-31", [])).toEqual([
++      { start: "2026-12-31T00:00:00.000Z", end: "2027-01-01T00:00:00.000Z" },
++    ]);
++  });
++});
+diff --git a/test/rooms-availability.spec.ts b/test/rooms-availability.spec.ts
+new file mode 100644
+index 0000000..cddd904
+--- /dev/null
++++ b/test/rooms-availability.spec.ts
+@@ -0,0 +1,96 @@
++import { describe, it, expect } from "vitest";
++import { createApp } from "../src/app.js";
++
++async function call(path: string, init?: RequestInit) {
++  const app = createApp();
++  const server = app.listen(0);
++  const { port } = server.address() as { port: number };
++  try {
++    const res = await fetch(`http://127.0.0.1:${port}${path}`, init);
++    return { status: res.status, body: (await res.json()) as any };
++  } finally {
++    server.close();
++  }
++}
++
++describe("GET /rooms/:id/availability", () => {
++  it("renvoie la journee entiere pour une salle sans reservation", async () => {
++    const res = await call("/rooms/labo/availability?date=2031-03-04");
++    expect(res.status).toBe(200);
++    expect(res.body).toEqual({
++      roomId: "labo",
++      date: "2031-03-04",
++      slots: [{ start: "2031-03-04T00:00:00.000Z", end: "2031-03-05T00:00:00.000Z" }]
++    });
++  });
++
++  it("retire une reservation creee via POST /bookings", async () => {
++    const created = await call("/bookings", {
++      method: "POST",
++      headers: { "content-type": "application/json" },
++      body: JSON.stringify({
++        roomId: "salle-b",
++        who: "test",
++        people: 2,
++        startsAt: "2031-06-10T10:00:00Z",
++        endsAt: "2031-06-10T12:00:00Z"
++      })
++    });
++    expect(created.status).toBe(201);
++
++    const res = await call("/rooms/salle-b/availability?date=2031-06-10");
++    expect(res.status).toBe(200);
++    expect(res.body.slots).toEqual([
++      { start: "2031-06-10T00:00:00.000Z", end: "2031-06-10T10:00:00.000Z" },
++      { start: "2031-06-10T12:00:00.000Z", end: "2031-06-11T00:00:00.000Z" }
++    ]);
++  });
++
++  it("retire la reservation du jeu de donnees initial", async () => {
++    const res = await call("/rooms/salle-a/availability?date=2026-10-05");
++    expect(res.status).toBe(200);
++    expect(res.body.slots).toEqual([
++      { start: "2026-10-05T00:00:00.000Z", end: "2026-10-05T09:00:00.000Z" },
++      { start: "2026-10-05T11:00:00.000Z", end: "2026-10-06T00:00:00.000Z" }
++    ]);
++  });
++
++  it("renvoie 404 pour une salle inconnue", async () => {
++    const res = await call("/rooms/cave/availability?date=2031-03-04");
++    expect(res.status).toBe(404);
++    expect(res.body).toEqual({ error: "salle inconnue" });
++  });
++
++  it("renvoie 404 avant 400 pour une salle inconnue sans date", async () => {
++    const res = await call("/rooms/cave/availability");
++    expect(res.status).toBe(404);
++    expect(res.body).toEqual({ error: "salle inconnue" });
++  });
++
++  it("renvoie 400 si date est absente", async () => {
++    const res = await call("/rooms/labo/availability");
++    expect(res.status).toBe(400);
++    expect(typeof res.body.error).toBe("string");
++  });
++
++  it.each(["2026-02-30", "2026-03-04T10:00:00Z", "garbage"])(
++    "renvoie 400 pour date=%s",
++    async (date) => {
++      const res = await call(`/rooms/labo/availability?date=${date}`);
++      expect(res.status).toBe(400);
++      expect(typeof res.body.error).toBe("string");
++    }
++  );
++
++  it("renvoie 400 pour un parametre date repete", async () => {
++    const res = await call("/rooms/labo/availability?date=2026-03-04&date=2026-03-05");
++    expect(res.status).toBe(400);
++    expect(typeof res.body.error).toBe("string");
++  });
++
++  it("GET /rooms/:id repond toujours 200", async () => {
++    const res = await call("/rooms/labo");
++    expect(res.status).toBe(200);
++    expect(res.body.room.id).toBe("labo");
++  });
++});
