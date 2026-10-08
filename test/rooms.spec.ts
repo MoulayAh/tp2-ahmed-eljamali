@@ -13,6 +13,32 @@ async function call(path: string) {
   }
 }
 
+describe("erreurs", () => {
+  it("renvoie une erreur JSON sans trace pour un identifiant mal encode", async () => {
+    const res = await call("/rooms/%E0%A4%A");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeTypeOf("string");
+    expect(JSON.stringify(res.body)).not.toMatch(/node_modules|at /);
+  });
+
+  it("renvoie une erreur JSON pour un corps JSON invalide", async () => {
+    const app = createApp();
+    const server = app.listen(0);
+    const { port } = server.address() as { port: number };
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/bookings`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{pas du json"
+      });
+      expect(res.status).toBe(400);
+      expect(res.headers.get("content-type")).toContain("application/json");
+    } finally {
+      server.close();
+    }
+  });
+});
+
 describe("GET /health", () => {
   it("repond ok", async () => {
     const res = await call("/health");
