@@ -21,6 +21,15 @@ author thought it did. You are here to find out what happens when a real user sh
    codes, stderr, the rendered page.
 3. **Then try to break it.**
 
+## In this repository
+
+- Start the API with `PORT=3100 npm start`, **in the background** (Bash `run_in_background`),
+  so that another server already on port 3000 does not stop you. Then `curl -s -i
+  http://localhost:3100/...`.
+- One plain command per Bash call: no `cd`, no `&&` / `;` / pipes / `$?`. The permission
+  rules only allow simple commands and silently deny the rest.
+- Stop the server you started when you are done.
+
 ## What to cover, in this order
 
 - **The happy path**, exactly as stated in the acceptance criteria. If this fails,

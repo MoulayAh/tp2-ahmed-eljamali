@@ -14,6 +14,8 @@ Les conventions du depot sont dans AGENTS.md (partage avec OpenCode) :
   chaque ecriture de `.ts` et renvoie le resultat a l'agent (il avertit, il ne bloque pas).
 - Ce qui bloque : le pre-commit husky, la commande `/ship` et la CI (`npm run check`).
 - Droits : `.claude/settings.json` (commandes autorisees, `.env` illisible, pas de push).
+  Seules des commandes simples sont autorisees : une commande par appel Bash, sans `cd`,
+  sans `&&`, `;`, `|` ni `$?`. Pour lire un fichier, utiliser l'outil Read, pas `cat`.
 - MCP : aucun (`.mcp.json` vide, voir DIAGNOSTIC.md).
 
 La config OpenCode (`.opencode/`, `opencode.json`) est gardee alignee sur celle-ci.

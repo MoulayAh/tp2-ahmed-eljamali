@@ -16,6 +16,7 @@
       "Bash(npx eslint:*)",
       "Bash(npx tsx:*)",
       "Bash(npm start)",
+      "Bash(PORT=3100 npm start)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
