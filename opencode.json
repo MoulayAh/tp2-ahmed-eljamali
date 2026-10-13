@@ -7,9 +7,9 @@
     "salles-db": {
       "type": "remote",
       "url": "https://mcp.internal.salles.lan/db",
-      "enabled": true,
+      "enabled": false,
       "headers": {
-        "Authorization": "Bearer ${SALLES_MCP_TOKEN}"
+        "Authorization": "Bearer {env:SALLES_MCP_TOKEN}"
       }
     },
     "github": {
@@ -17,41 +17,12 @@
       "command": [
         "npx",
         "-y",
-        "@modelcontextprotocol/server-github"
+        "@modelcontextprotocol/server-github@2025.4.8"
       ],
-      "enabled": true
-    },
-    "notion": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@notionhq/notion-mcp-server"
-      ],
-      "enabled": true
-    },
-    "slack": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-slack"
-      ],
-      "enabled": true
-    },
-    "sentry": {
-      "type": "remote",
-      "url": "https://mcp.sentry.dev/mcp",
-      "enabled": true
-    },
-    "playwright": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@playwright/mcp@latest"
-      ],
-      "enabled": true
+      "enabled": false,
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
     }
   }
 }

@@ -11,8 +11,10 @@ permission:
   grep: allow
   list: allow
   lsp: allow
-  webfetch: allow
-  edit: allow
+  webfetch: ask
+  edit:
+    "*": deny
+    ".opencode/plans/*-notes.md": allow
   task: deny
   bash:
     "*": deny
@@ -21,8 +23,6 @@ permission:
     "git diff*": allow
     "git blame*": allow
     "ls*": allow
-    "find *": allow
-    "curl*": allow
 ---
 
 You are in explorer mode.
@@ -78,5 +78,5 @@ you can and say which part you dropped.
   assuming the framework's usual conventions apply here.
 - **No fixes, no refactoring advice, no code review.** Even if the code is obviously bad,
   report it under Gotchas as a fact and move on.
-- Use `webfetch` and `curl` freely to check an external library's documentation, an
-  internal service, or an API response you need in order to explain the code.
+- You may ask for `webfetch` to read an external library's documentation. You never call
+  internal services: you explain code, you do not exercise it (that is `tester`'s job).
