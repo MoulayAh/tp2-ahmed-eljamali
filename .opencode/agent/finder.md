@@ -13,6 +13,10 @@ permission:
   edit: deny
   task: deny
   webfetch: deny
+  bash:
+    "*": deny
+    "git grep*": allow
+    "git ls-files*": allow
 ---
 
 You are in finder mode.
