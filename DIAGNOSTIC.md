@@ -169,7 +169,7 @@ Format : **symptôme** → **cause (fichier)** → **brique du cours** → **cor
 - **Brique** : CI et Git.
 - **Correction** : `npm ci` → typecheck → lint → `npm run test:coverage` (tous les
   `*.spec.ts`, avec seuils). Sur chaque PR et chaque push sur `main`.
-- **Preuve** : `avant/06-ci-tests-commentes.png`, `apres/09-ci.png`.
+- **Preuve** : `avant/06-ci-tests-commentes.png`, `apres/09-ci.png`, `apres/13-ci-sur-la-pr.png` (run GitHub Actions sur la PR #1 : 59 tests, couverture 98 %).
 
 ### 2.9 Subagents : `finder` ne peut rien lire
 
