@@ -1,6 +1,14 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
+# Active par `npm install` (script "prepare" -> git config core.hooksPath .husky).
+# Bloque le commit si l'un des checks est rouge.
+set -e
 
-npm run lint
-npm run typecheck
-npm run test:unit
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+if [ "$branch" = "main" ]; then
+  echo "pre-commit : pas de commit direct sur main (cf. AGENTS.md). Passe par une branche et une PR."
+  exit 1
+fi
+
+npm run --silent typecheck
+npm run --silent lint
+npm test --silent
